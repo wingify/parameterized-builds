@@ -36,6 +36,28 @@
 {/call}
 {/template}
 
+
+/**
+ * @param server
+ * @param projectKey
+ * @param repository
+ * @param errors
+ */
+{template .settingsRepoAdmin}
+<html>
+<head>
+    <meta name="decorator" content="bitbucket.repository.settings">
+	<meta name="projectKey" content="{$projectKey}">
+	<meta name="repositorySlug" content="{$repository}">
+    <meta name="activeTab" content="jenkins-admin-repository-tab">
+    <title>Jenkins Settings</title>
+</head>
+{call .body}
+    {param server: $server /}
+    {param errors: $errors /}
+{/call}
+{/template}
+
 /**
  * @param server
  * @param errors

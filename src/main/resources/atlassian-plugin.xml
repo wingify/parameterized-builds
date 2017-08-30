@@ -152,6 +152,11 @@
      <link linkId="reminder-config-link">/plugins/servlet/jenkins/project/${project.key}</link>
   </web-item>
 
+  <web-item name="Jenkins Admin Settings" key="jenkins-admin-repo-tab" section="bitbucket.repository.settings.panel/repository-settings-addons-section" weight="30">
+    <label>Jenkins Settings</label>
+    <link linkId="reminder-config-link">/plugins/servlet/jenkins/projects/${project.key}/repository/${repository.slug}</link>
+  </web-item>
+
   <web-item name="Jenkins User Settings" key="jenkins-user-tab" section="bitbucket.user.account.nav" weight="200">
     <label>Jenkins Settings</label>
     <link>/plugins/servlet/jenkins/account</link>

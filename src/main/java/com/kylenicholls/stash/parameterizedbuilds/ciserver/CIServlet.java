@@ -32,8 +32,10 @@ public class CIServlet extends HttpServlet {
 	private static final String ERRORS = "errors";
 	private static final String JENKINS_ADMIN_SETTINGS = "jenkins.admin.settings";
 	private static final String JENKINS_PROJECT_SETTINGS = "jenkins.admin.settingsProjectAdmin";
+	private static final String JENKINS_REPOSITORTY_SETTINGS = "jenkins.admin.settingsRepoAdmin";
 	private static final String SERVER = "server";
 	private static final String PROJECT_KEY = "projectKey";
+	private static final String REPO_SLUG = "repository";
 	private final transient SoyTemplateRenderer soyTemplateRenderer;
 	private final transient AuthenticationContext authContext;
 	private final transient NavBuilder navBuilder;
@@ -59,6 +61,8 @@ public class CIServlet extends HttpServlet {
 					renderForAccount(res);
 				} else if (pathInfo.contains("/jenkins/project/")) {
 					renderForProject(res, pathInfo);
+				} else if (pathInfo.contains("/jenkins/projects/") && pathInfo.contains("/repository/")) {
+					renderForRepository(res, pathInfo);
 				} else {
 					renderForGlobal(res);
 				}
@@ -88,6 +92,21 @@ public class CIServlet extends HttpServlet {
 						: "", PROJECT_KEY, projectKey, ERRORS, ""));
 	}
 
+	private void renderForRepository(HttpServletResponse resp, String pathInfo)
+			throws IOException, ServletException {
+		String[] relPath = pathInfo.replaceAll(".*/jenkins/projects/", "").split("/");
+		if(relPath.length < 3) {
+			render(resp, JENKINS_REPOSITORTY_SETTINGS, ImmutableMap
+					.<String, Object> of(SERVER, "", PROJECT_KEY,"", REPO_SLUG,"", ERRORS, "Cannot resolve url"));
+		}
+		String projectKey =relPath[0];
+		String repository = relPath[2];
+		Server projectServer = jenkins.getJenkinsServer(projectKey, repository);
+		render(resp, JENKINS_REPOSITORTY_SETTINGS, ImmutableMap
+				.<String, Object> of(SERVER, projectServer != null ? projectServer
+						: "", PROJECT_KEY, projectKey, REPO_SLUG, repository, ERRORS, ""));
+	}
+
 	private void renderForGlobal(HttpServletResponse resp) throws IOException, ServletException {
 		Server server = jenkins.getJenkinsServer();
 		render(resp, JENKINS_ADMIN_SETTINGS, ImmutableMap
@@ -110,6 +129,11 @@ public class CIServlet extends HttpServlet {
 					String projectKey = pathInfo.replaceAll(".*/jenkins/project/", "")
 							.split("/")[0];
 					postProjectSettings(server, clearSettings, projectKey, req, res);
+				} else if (pathInfo.contains("/jenkins/projects/")) {
+					String[] relPath = pathInfo.replaceAll(".*/jenkins/projects/", "").split("/");
+					String projectKey =relPath[0];
+					String repository = relPath[2];
+					postRepositorySettings(server, clearSettings, projectKey, repository, req, res);
 				} else {
 					postGlobalSettings(server, clearSettings, req, res);
 				}
@@ -161,6 +185,21 @@ public class CIServlet extends HttpServlet {
 			return;
 		} else {
 			jenkins.saveJenkinsServer(server, projectKey);
+		}
+		doGet(req, res);
+	}
+
+	private void postRepositorySettings(Server server, boolean clearSettings, String projectKey, String repository,
+									 HttpServletRequest req, HttpServletResponse res) throws IOException, ServletException {
+		if (clearSettings) {
+			jenkins.saveJenkinsServer(null, projectKey, repository);
+		} else if (server.getBaseUrl().isEmpty()) {
+			render(res, JENKINS_REPOSITORTY_SETTINGS, ImmutableMap
+					.<String, Object> of(SERVER, server, PROJECT_KEY, projectKey, REPO_SLUG, repository,
+							ERRORS, "Base URL required"));
+			return;
+		} else {
+			jenkins.saveJenkinsServer(server, projectKey, repository);
 		}
 		doGet(req, res);
 	}

@@ -28,6 +28,7 @@ public class Jenkins {
 	private static final String PLUGIN_KEY = "com.kylenicholls.stash.parameterized-builds";
 	private static final String JENKINS_SETTINGS = ".jenkinsSettings";
 	private static final String JENKINS_SETTINGS_PROJECT = JENKINS_SETTINGS + ".";
+	private static final String JENKINS_SETTINGS_REPOSITORY = JENKINS_SETTINGS + ".";
 	private static final String JENKINS_USER = ".jenkinsUser.";
 	private final PluginSettings pluginSettings;
 
@@ -57,6 +58,21 @@ public class Jenkins {
 	 */
 	protected void saveJenkinsServer(@Nullable Server server, String projectKey) {
 		saveJenkinsServerToDB(JENKINS_SETTINGS_PROJECT + projectKey, server);
+	}
+
+	/**
+	 * Saves or removes a Jenkins server for a specfic repository. If the server is
+	 * null then the global server will be removed for the repository.
+	 *
+	 * @param server
+	 *            the project server
+	 * @param projectKey
+	 *            the project key
+	 * @param repository
+	 *            the repository name
+	 */
+	protected void saveJenkinsServer(@Nullable Server server, String projectKey, String repository) {
+		saveJenkinsServerToDB(JENKINS_SETTINGS_REPOSITORY + projectKey + '.' + repository, server);
 	}
 
 	/**
@@ -139,6 +155,23 @@ public class Jenkins {
 	}
 
 	/**
+	 * Returns a Jenkins server for a repository.
+	 *
+	 * @return a Jenkins server for a repository or null if there is not one for
+	 *         the specified project
+	 */
+	@Nullable
+	public Server getJenkinsServer(String projectKey, String repository) {
+		Object settingObj = pluginSettings.get(JENKINS_SETTINGS_REPOSITORY + projectKey + "." + repository);
+		if (settingObj != null && settingObj instanceof java.util.Map) {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> serverMap = (Map<String, Object>) settingObj;
+			return new Server(serverMap);
+		}
+		return null;
+	}
+
+	/**
 	 * Returns the colon separated global user token for the specified user.
 	 *
 	 * @return the colon separated user token or null if the user is null or the
@@ -149,7 +182,7 @@ public class Jenkins {
 	 */
 	@Nullable
 	public String getJoinedUserToken(@Nullable ApplicationUser user) {
-		String userToken = getUserToken(user, null);
+		String userToken = getUserToken(user, null, null);
 		if (userToken != null) {
 			return user.getSlug() + ":" + userToken;
 		}
@@ -170,7 +203,31 @@ public class Jenkins {
 	 */
 	@Nullable
 	public String getJoinedUserToken(@Nullable ApplicationUser user, String projectKey) {
-		String userToken = getUserToken(user, projectKey);
+		String userToken = getUserToken(user, projectKey, null);
+		if (userToken != null) {
+			return user.getSlug() + ":" + userToken;
+		}
+		return null;
+	}
+
+
+	/**
+	 * Returns the colon separated user token for the specified user and
+	 * project.
+	 *
+	 * @return the colon separated user token or null if the user is null or the
+	 *         token does not exist
+	 * @param user
+	 *            the user to get the token for, can be null if the user is
+	 *            anonymous
+	 * @param projectKey
+	 *            the project to get the token for
+	 * @param repository
+	 *            the repository to get the token for
+	 */
+	@Nullable
+	public String getJoinedUserToken(@Nullable ApplicationUser user, String projectKey, String repository) {
+		String userToken = getUserToken(user, projectKey, repository);
 		if (userToken != null) {
 			return user.getSlug() + ":" + userToken;
 		}
@@ -190,16 +247,22 @@ public class Jenkins {
 	 *            the global user token
 	 */
 	@Nullable
-	private String getUserToken(@Nullable ApplicationUser user, @Nullable String projectKey) {
+	private String getUserToken(@Nullable ApplicationUser user, @Nullable String projectKey, @Nullable String repository) {
 		if (user != null) {
 			if (projectKey == null) {
 				Object settingObj = pluginSettings.get(JENKINS_USER + user.getSlug());
 				if (settingObj != null) {
 					return settingObj.toString();
 				}
-			} else {
+			} else if (repository == null) {
 				Object settingObj = pluginSettings
 						.get(JENKINS_USER + user.getSlug() + "." + projectKey);
+				if (settingObj != null) {
+					return settingObj.toString();
+				}
+			} else {
+				Object settingObj = pluginSettings
+						.get(JENKINS_USER + user.getSlug() + "." + projectKey + "." + repository);
 				if (settingObj != null) {
 					return settingObj.toString();
 				}
@@ -224,7 +287,7 @@ public class Jenkins {
 	protected List<UserToken> getAllUserTokens(ApplicationUser user, List<String> projectKeys,
 			ProjectService projectService) {
 		List<UserToken> userTokens = new ArrayList<>();
-		String globalUserTokenString = getUserToken(user, null);
+		String globalUserTokenString = getUserToken(user, null, null);
 		Server globalServer = getJenkinsServer();
 		if (globalServer != null) {
 			UserToken globalUserToken = new UserToken(globalServer.getBaseUrl(), "", "Global",
@@ -234,7 +297,7 @@ public class Jenkins {
 
 		for (String projectKey : projectKeys) {
 			Server projectServer = getJenkinsServer(projectKey);
-			String projectUserTokenString = getUserToken(user, projectKey);
+			String projectUserTokenString = getUserToken(user, projectKey, null);
 			if (projectServer != null) {
 				UserToken projectUserToken = new UserToken(projectServer.getBaseUrl(), projectKey,
 						projectService.getByKey(projectKey).getName(), user.getSlug(),
